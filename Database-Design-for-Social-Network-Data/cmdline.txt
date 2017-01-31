@@ -1,0 +1,6 @@
+module load eecs484
+rlwrap sqlplus
+@part2.sql
+@part3.sql
+@part4.sql
+zip -r project1.zip ER_Diagram.pdf createTables.sql dropTables.sql loadData.sql createViews.sql dropViews.sql
