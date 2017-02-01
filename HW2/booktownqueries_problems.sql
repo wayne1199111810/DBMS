@@ -39,14 +39,15 @@ PROMPT Question 5.3;
 -- Using a single query is likely to be more 
 -- efficient in practice. Moreover, there shouldn't be any duplication for the returned records.
 SELECT DISTINCT B.title, E.publication, A.author_id, A.last_name, A.first_name
-FROM books B, editions E
+FROM books B, editions E, 
 (
-	SELECT DISTINCT A.author_id
+	SELECT DISTINCT A.author_id AS author_id, A.last_name AS last_name, A.first_name AS first_name
 	FROM authors A, books B, editions E
 	WHERE B.author_id = A.author_id AND B.book_id = E.book_id AND E.publication > '1999-10-01'
 	AND E.publication < '2001-10-01'
 )A
-WHERE B.author_id = A.author_id AND B.book_id = E.book_id;
+WHERE B.author_id = A.author_id AND B.book_id = E.book_id
+;
 
 -- Q4
 PROMPT Question 5.4;
@@ -54,12 +55,12 @@ PROMPT Question 5.4;
 -- subjects of books written by Edgar Allen Poe.
 SELECT DISTINCT A.author_id, A.first_name, A.last_name
 FROM authors A, books B, subjects S
-WHERE A.author_id = B.author_id AND B.subject_id = S1.subject_id AND
-S.subject EXISTS 
+WHERE A.author_id = B.author_id AND B.subject_id = S.subject_id AND
+S.subject IN 
 (
-	SELECT DISTINCT S.subject AS subject
+	SELECT S.subject
 	FROM authors A, books B, subjects S
-	WHERE A.first_name = 'Edgar Allen' AND A.last_name = 'Poe' AND A1.author_id = B.author_id
+	WHERE A.first_name = 'Edgar Allen' AND A.last_name = 'Poe' AND A.author_id = B.author_id
 	AND B.subject_id = S.subject_id
 );
 
@@ -79,10 +80,15 @@ PROMPT Question 5.6;
 -- Find the name and id of all publishers who have published books for authors
 -- who have written exactly 2 books. Result should be ordered by publisher id in descending order;
 SELECT DISTINCT P.name, P.publisher_id
-FROM authors A, publishers P, books B, editions E
+FROM publishers P, books B, editions E,
+(
+	SELECT DISTINCT A.author_id AS author_id
+	FROM authors A, books B
+	WHERE A.author_id = B.author_id
+	GROUP BY A.author_id
+	HAVING COUNT(*) = 2
+)A
 WHERE A.author_id = B.author_id AND B.book_id = E.book_id AND E.publisher_id = P.publisher_id
-GROUP BY A.author_id
-HAVING COUNT(*) = 2
 ORDER BY P.publisher_id DESC;
 
 -- Q7
@@ -91,7 +97,7 @@ PROMPT Question 5.7;
 -- Name the last name column as l_name, the first name column as f_name.
 SELECT DISTINCT A.last_name AS l_name, A.first_name AS f_name
 FROM authors A, books B
-WHERE A.author_id NOT EXISTS 
+WHERE A.author_id NOT IN
 (
 	SELECT DISTINCT A.author_id
 	FROM authors A, books B
@@ -105,4 +111,4 @@ PROMPT Question 5.8;
 SELECT DISTINCT A.author_id AS aid
 FROM authors A, books B
 WHERE A.author_id = B.author_id
-GROUP BY A.aid HAVING COUNT(*) = 1;
+GROUP BY A.author_id HAVING COUNT(*) = 1;
