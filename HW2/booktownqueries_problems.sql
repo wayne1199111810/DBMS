@@ -53,16 +53,30 @@ WHERE B.author_id = A.author_id AND B.book_id = E.book_id
 PROMPT Question 5.4;
 -- Find id, first name, and last name of authors who wrote books for all the 
 -- subjects of books written by Edgar Allen Poe.
-SELECT DISTINCT A.author_id, A.first_name, A.last_name
+CREATE VIEW author_subject (author_id, first_name, last_name, subject)
+AS SELECT DISTINCT A.author_id, A.first_name, A.last_name, S.subject
 FROM authors A, books B, subjects S
-WHERE A.author_id = B.author_id AND B.subject_id = S.subject_id AND
-S.subject IN 
+WHERE A.author_id = B.author_id AND B.subject_id = S.subject_id;
+
+SELECT DISTINCT author_id, first_name, last_name FROM author_subject
+MINUS
+SELECT author_id, first_name, last_name FROM
 (
-	SELECT S.subject
-	FROM authors A, books B, subjects S
-	WHERE A.first_name = 'Edgar Allen' AND A.last_name = 'Poe' AND A.author_id = B.author_id
-	AND B.subject_id = S.subject_id
-);
+	SELECT author_id, first_name, last_name, subject FROM
+	(
+		SELECT author_id, first_name, last_name FROM author_subject
+	),
+	(
+		SELECT S.subject AS subject
+		FROM authors A, books B, subjects S
+		WHERE A.first_name = 'Edgar Allen' AND A.last_name = 'Poe' AND A.author_id = B.author_id
+		AND B.subject_id = S.subject_id
+	)
+	MINUS
+	SELECT author_id, first_name, last_name, subject FROM author_subject
+)
+;
+DROP VIEW author_subject;
 
 -- Q5
 PROMPT Question 5.5;
