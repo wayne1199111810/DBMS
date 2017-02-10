@@ -367,7 +367,11 @@ public class MyFakebookOracle extends FakebookOracle {
         this.suggestedUsersPairs.add(p);
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
-            ResultSet rst = stmt.executeQuery();
+            ResultSet rst = stmt.executeQuery(
+                "select U1.user_id, U1.first_name, U1.last_name, U2.user_id, U2.first_name, " +
+                "U2.last_name + from " + userTableName + " U1, " + userTableName + " U2, " +
+                friendsTableName + " F1, "
+                );
             while(rst.next())
             {
 
@@ -392,8 +396,8 @@ public class MyFakebookOracle extends FakebookOracle {
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery(
-                "select count(*) C.state_name from " eventTableName " E, " + cityTableName + " C
-                where C.city_id = E.event_city_id group by C.city_id order by 1 desc");
+                "select count(*) C.state_name from " + eventTableName + " E, " + cityTableName +
+                 "C where C.city_id = E.event_city_id group by C.city_id order by 1 desc");
             while(rst.next())
             {
                 if(rst.isFirst())
@@ -407,7 +411,7 @@ public class MyFakebookOracle extends FakebookOracle {
                     if(this.eventCount = rst.getInt(1))
                     {
                         String stateName = rst.getString(2);
-                        this.popularStateName   s.add(stateName);
+                        this.popularStateNames.add(stateName);
                     }   
                     else    
                         break;  
