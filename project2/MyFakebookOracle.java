@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.TreeSet;
 
 public class MyFakebookOracle extends FakebookOracle {
 
@@ -127,18 +128,27 @@ public class MyFakebookOracle extends FakebookOracle {
     //
     public void findNameInfo() { // Query1
         // Find the following information from your database and store the information as shown
+        /*
+        this.longestFirstNames.add("JohnJacobJingleheimerSchmidt");         
+        this.shortestFirstNames.add("Al");         
+        this.shortestFirstNames.add("Jo");         
+        this.shortestFirstNames.add("Bo");         
+        this.mostCommonFirstNames.add("John");         
+        this.mostCommonFirstNames.add("Jane");
+        this.mostCommonFirstNamesCount = 10;
+        */
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
                              ResultSet.CONCUR_READ_ONLY)){
-            ResultSet rst = stmt.executeQuery("select count(*), first_name from" + userTableName + 
+            ResultSet rst = stmt.executeQuery("select count(*), first_name from " + userTableName + 
                 " where first_name is not null group by first_name order by 1 desc");
             this.mostCommonFirstNamesCount = 0;
             int longest = 0;
-            int shortest = Interger.MAX_VALUE;
+            int shortest = Integer.MAX_VALUE;
             while(rst.next())
             {
                 if(longest < rst.getString(2).length())
                 {
-                    this.longestFirstNames = new Treeset<String>();
+                    this.longestFirstNames = new TreeSet<String>();
                     this.longestFirstNames.add(rst.getString(2));
                     longest = rst.getString(2).length();
                 }
@@ -148,7 +158,7 @@ public class MyFakebookOracle extends FakebookOracle {
                 }
                 if(shortest > rst.getString(2).length())
                 {
-                    this.shortestFirstNames = new Treeset<String>();
+                    this.shortestFirstNames = new TreeSet<String>();
                     this.shortestFirstNames.add(rst.getString(2));
                     shortest = rst.getString(2).length();
                 }
@@ -188,11 +198,15 @@ public class MyFakebookOracle extends FakebookOracle {
     //
     public void lonelyUsers() {
         // Find the following information from your database and store the information as shown
+        /*
+        this.lonelyUsers.add(new UserInfo(10L, "Billy", "SmellsFunny"));         
+        this.lonelyUsers.add(new UserInfo(11L, "Jenny", "BadBreath"));
+        */
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
                              ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery("select U.user_id, U.first_name, U.last_name from " + userTableName +
-                " U, (select user1_id as user_id from " + friendsTableName + " union select user2_id as user_id from " +
-                friendsTableName + ") F where U.user_id = F.user_id order by U.user_id");
+                " U where U.user_id not in (select user1_id as user_id from " + friendsTableName + 
+                " union select user2_id as user_id from " + friendsTableName + ") order by U.user_id");
             while (rst.next()) {
                 Long uid = rst.getLong(1);
                 String firstName = rst.getString(2);
@@ -215,7 +229,7 @@ public class MyFakebookOracle extends FakebookOracle {
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery("select U.user_id, U.first_name, U.last_name from " + userTableName +
-                ", " + hometownCityTableName + " H, " + currentCityTableName + " C where U.user_id = H.user_id and " +
+                " U, " + hometownCityTableName + " H, " + currentCityTableName + " C where U.user_id = H.user_id and " +
                 " U.user_id = C.user_id and H.hometown_city_id <> C.current_city_id order by U.user_id");
             while(rst.next())
             {
@@ -227,7 +241,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
 
@@ -252,9 +266,9 @@ public class MyFakebookOracle extends FakebookOracle {
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery("select count(*), T.tag_photo_id, A.album_id, A.album_name, P.photo_caption, " +
-                + "P.photo_link from " + tagTableName + " T, " + photoTableName + " P,"+ albumTableName +
+                "P.photo_link from " + tagTableName + " T, " + photoTableName + " P,"+ albumTableName +
                 " A where P.photo_id = T.tag_photo_id and P.album_id = A.album_id" +
-                " group by T.tag_photo_id order by 1 desc, T.tag_photo_id asc limit" + n);
+                " group by T.tag_photo_id order by 1 desc, T.tag_photo_id asc limit " + n);
             while(rst.next())
             {
                 String photoId = rst.getString(2);
@@ -280,7 +294,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
 
@@ -299,6 +313,7 @@ public class MyFakebookOracle extends FakebookOracle {
     // (iii) If there are still ties, choose the pair with the smaller user2_id
     //
     public void matchMaker(int n, int yearDiff) {
+        /*
         Long u1UserId = 123L;
         String u1FirstName = "u1FirstName";
         String u1LastName = "u1LastName";
@@ -317,6 +332,7 @@ public class MyFakebookOracle extends FakebookOracle {
         mp.addSharedPhoto(new PhotoInfo(sharedPhotoId, sharedPhotoAlbumId,
                 sharedPhotoAlbumName, sharedPhotoCaption, sharedPhotoLink));
         this.bestMatches.add(mp);
+        */
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery(
@@ -334,7 +350,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
 
@@ -379,7 +395,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
 
@@ -408,7 +424,7 @@ public class MyFakebookOracle extends FakebookOracle {
                 }
                 else
                 {
-                    if(this.eventCount = rst.getInt(1))
+                    if(this.eventCount == rst.getInt(1))
                     {
                         String stateName = rst.getString(2);
                         this.popularStateNames.add(stateName);
@@ -420,7 +436,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
 
@@ -468,7 +484,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
 
@@ -483,6 +499,7 @@ public class MyFakebookOracle extends FakebookOracle {
     //
     //
     public void findPotentialSiblings() {
+        /*
         Long user1_id = 123L;
         String user1FirstName = "User1FirstName";
         String user1LastName = "User1LastName";
@@ -491,6 +508,7 @@ public class MyFakebookOracle extends FakebookOracle {
         String user2LastName = "User2LastName";
         SiblingInfo s = new SiblingInfo(user1_id, user1FirstName, user1LastName, user2_id, user2FirstName, user2LastName);
         this.siblings.add(s);
+        */
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery(
@@ -516,8 +534,7 @@ public class MyFakebookOracle extends FakebookOracle {
             rst.close();
             stmt.close();
         }catch(SQLException err){
-            System.println(err.getMessage());
+            System.err.println(err.getMessage());
         }
     }
-
 }
