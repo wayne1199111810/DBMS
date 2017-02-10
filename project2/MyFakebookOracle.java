@@ -188,8 +188,22 @@ public class MyFakebookOracle extends FakebookOracle {
     //
     public void lonelyUsers() {
         // Find the following information from your database and store the information as shown
-        this.lonelyUsers.add(new UserInfo(10L, "Billy", "SmellsFunny"));
-        this.lonelyUsers.add(new UserInfo(11L, "Jenny", "BadBreath"));
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+                             ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery("select U.user_id, U.first_name, U.last_name from " + userTableName +
+                " U, (select user1_id as user_id from " + friendsTableName + " union select user2_id as user_id from " +
+                friendsTableName + ") F where U.user_id = F.user_id order by U.user_id");
+            while (rst.next()) {
+                Long uid = rst.getLong(1);
+                String firstName = rst.getString(2);
+                String lastName = rst.getString(3);
+                this.lonelyUsers.add(new UserInfo(uid, firstName, lastName));
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.err.println(err.getMessage());
+        }
     }
 
     @Override
@@ -198,7 +212,23 @@ public class MyFakebookOracle extends FakebookOracle {
     // (I.e., current_city != hometown_city)
     //
     public void liveAwayFromHome() throws SQLException {
-        this.liveAwayFromHome.add(new UserInfo(11L, "Heather", "Movalot"));
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery("select U.user_id, U.first_name, U.last_name from " + userTableName +
+                ", " + hometownCityTableName + " H, " + currentCityTableName + " C where U.user_id = H.user_id and " +
+                " U.user_id = C.user_id and H.hometown_city_id <> C.current_city_id order by U.user_id");
+            while(rst.next())
+            {
+                Long uid = rst.getLong(1);
+                String firstName = rst.getString(2);
+                String lastName = rst.getString(3);
+                this.liveAwayFromHome.add(new UserInfo(uid, firstName, lastName));
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
     @Override
@@ -207,6 +237,7 @@ public class MyFakebookOracle extends FakebookOracle {
     // If there are ties, choose the photo with the smaller numeric PhotoID first
     //
     public void findPhotosWithMostTags(int n) {
+        /*
         String photoId = "1234567";
         String albumId = "123456789";
         String albumName = "album1";
@@ -217,6 +248,40 @@ public class MyFakebookOracle extends FakebookOracle {
         tp.addTaggedUser(new UserInfo(12345L, "taggedUserFirstName1", "taggedUserLastName1"));
         tp.addTaggedUser(new UserInfo(12345L, "taggedUserFirstName2", "taggedUserLastName2"));
         this.photosWithMostTags.add(tp);
+*/
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery("select count(*), T.tag_photo_id, A.album_id, A.album_name, P.photo_caption, " +
+                + "P.photo_link from " + tagTableName + " T, " + photoTableName + " P,"+ albumTableName +
+                " A where P.photo_id = T.tag_photo_id and P.album_id = A.album_id" +
+                " group by T.tag_photo_id order by 1 desc, T.tag_photo_id asc limit" + n);
+            while(rst.next())
+            {
+                String photoId = rst.getString(2);
+                String albumId = rst.getString(3);
+                String albumName = rst.getString(4);
+                String photoCaption = rst.getString(5);
+                String photoLink = rst.getString(6);
+                PhotoInfo p = new PhotoInfo(photoId, albumId, albumName, photoCaption, photoLink);
+                TaggedPhotoInfo tp = new TaggedPhotoInfo(p);
+                ResultSet rst2 = stmt.executeQuery("select U.user_id, U.first_name, u.last_name from " +
+                    userTableName + " U, " + tagTableName + " T where U.user_id = T.tag_subject_id " +
+                    "and T.tag_photo_id = " + photoId);
+                while(rst2.next())
+                {
+                    Long uid = rst.getLong(1);
+                    String firstName = rst.getString(2);
+                    String lastName = rst.getString(3);
+                    tp.addTaggedUser(new UserInfo(uid, firstName, lastName));
+                }
+                rst2.close();
+                this.photosWithMostTags.add(tp);
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
     @Override
@@ -252,6 +317,25 @@ public class MyFakebookOracle extends FakebookOracle {
         mp.addSharedPhoto(new PhotoInfo(sharedPhotoId, sharedPhotoAlbumId,
                 sharedPhotoAlbumName, sharedPhotoCaption, sharedPhotoLink));
         this.bestMatches.add(mp);
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery(
+                "select count(*), U1.user_id, U2.user_id from " + userTableName + " U1, " + userTableName +
+                " U2, " + tagTableName + " T1," + tagTableName + " T2 where U1.gender = U2.gender and " +
+                " U2.year_of_birth - U1.year_of_birth <= " + yearDiff +" and U2.user_id > U1.user_id " +
+                "and U1.user_id = T1.tag_subject_id and U2.user_id = T2.user_id group by T1."
+                );
+
+
+            while(rst.next())
+            {
+
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
     // **** Query 6 ****
@@ -281,6 +365,18 @@ public class MyFakebookOracle extends FakebookOracle {
         p.addSharedFriend(678L, "sharedFriend2FirstName", "sharedFriend2LastName");
         p.addSharedFriend(789L, "sharedFriend3FirstName", "sharedFriend3LastName");
         this.suggestedUsersPairs.add(p);
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery();
+            while(rst.next())
+            {
+
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
     @Override
@@ -293,6 +389,35 @@ public class MyFakebookOracle extends FakebookOracle {
         this.eventCount = 12;
         this.popularStateNames.add("Michigan");
         this.popularStateNames.add("California");
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery(
+                "select count(*) C.state_name from " eventTableName " E, " + cityTableName + " C
+                where C.city_id = E.event_city_id group by C.city_id order by 1 desc");
+            while(rst.next())
+            {
+                if(rst.isFirst())
+                {
+                    this.eventCount = rst.getInt(1);
+                    String stateName = rst.getString(2);
+                    this.popularStateNames.add(stateName);
+                }
+                else
+                {
+                    if(this.eventCount = rst.getInt(1))
+                    {
+                        String stateName = rst.getString(2);
+                        this.popularStateName   s.add(stateName);
+                    }   
+                    else    
+                        break;  
+                }   
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
     //@Override
@@ -304,8 +429,43 @@ public class MyFakebookOracle extends FakebookOracle {
     // on the same day, then assume that the one with the larger user_id is older
     //
     public void findAgeInfo(Long user_id) {
+        /*
         this.oldestFriend = new UserInfo(1L, "Oliver", "Oldham");
         this.youngestFriend = new UserInfo(25L, "Yolanda", "Young");
+        */
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery(
+                "select U.user_id, U.first_name, U.last_name from " + userTableName + " U, " + 
+                "(select U.user_id as fuid from " + userTableName + " U," + friendsTableName +
+                " F where U.user_id = F.user1_id and F.user2_id = " + user_id + " union " +
+                "select U.user_id as fuid from " + userTableName + " U," + friendsTableName +
+                " F where U.user_id = F.user2_id and F.user1_id = " + user_id + ") F where " +
+                "F.fuid = U.user_id order by U.year_of_birth asc, U.month_of_birth asc, " +
+                "U.day_of_birth asc, U.user_id"
+                );
+            while(rst.next())
+            {
+                if(rst.isFirst())
+                {
+                    Long uid = rst.getLong(1);
+                    String firstName = rst.getString(2);
+                    String lastName = rst.getString(3);
+                    this.oldestFriend = new UserInfo(uid, firstName, lastName);
+                }
+                if(rst.isLast())
+                {
+                    Long uid = rst.getLong(1);
+                    String firstName = rst.getString(2);
+                    String lastName = rst.getString(3);
+                    this.youngestFriend = new UserInfo(uid, firstName, lastName);
+                }
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
     @Override
@@ -327,6 +487,33 @@ public class MyFakebookOracle extends FakebookOracle {
         String user2LastName = "User2LastName";
         SiblingInfo s = new SiblingInfo(user1_id, user1FirstName, user1LastName, user2_id, user2FirstName, user2LastName);
         this.siblings.add(s);
+        try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
+            ResultSet.CONCUR_READ_ONLY)){
+            ResultSet rst = stmt.executeQuery(
+                "select U1.user_id, U1.first_name, U1.last_name, U2.user_id, U2.first_name, U2.last_name " +
+                "from " + userTableName + " U1, " + userTableName + " U2, " + friendsTableName + " F, " +
+                hometownCityTableName + " H1, " + hometownCityTableName + " H2 where " +
+                "F.user1_id = U1.user_id and F.user2_id = U2.user_id and U1.user_id = H1.user_id " +
+                "and U2.user_id = H2.user_id and H1.hometown_city_id = H2.hometown_city_id and " +
+                "U1.year_of_birth - U2.year_of_birth < 10 and U1.year_of_birth - U2.year_of_birth > -10 " +
+                "and U1.user_id < U2.user_id order by U1.user_id, U2.user_id"
+                );
+            while(rst.next())
+            {
+                Long user1_id = rst.getLong(1);
+                String user1FirstName = rst.getString(2);
+                String user1LastName = rst.getString(3);
+                Long user2_id = rst.getLong(4);
+                String user2FirstName = rst.getString(5);
+                String user2LastName = rst.getString(6);
+                SiblingInfo s = new SiblingInfo(user1_id, user1FirstName, user1LastName, user2_id, user2FirstName, user2LastName);
+                this.siblings.add(s);
+            }
+            rst.close();
+            stmt.close();
+        }catch(SQLException err){
+            System.println(err.getMessage());
+        }
     }
 
 }
