@@ -265,32 +265,52 @@ public class MyFakebookOracle extends FakebookOracle {
 */
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
-            ResultSet rst = stmt.executeQuery("select count(*), T.tag_photo_id, A.album_id, A.album_name, P.photo_caption, " +
-                "P.photo_link from " + tagTableName + " T, " + photoTableName + " P,"+ albumTableName +
-                " A where P.photo_id = T.tag_photo_id and P.album_id = A.album_id" +
-                " group by T.tag_photo_id order by 1 desc, T.tag_photo_id asc limit " + n);
+
+            ResultSet rst = stmt.executeQuery(
+                "select T1.count, T1.photo_id, A.album_id, A.album_name, P.photo_caption, P.photo_link, " +
+                "U.user_id, U.first_name, U.last_name from " + albumTableName + " A, " + photoTableName +
+                " P, (select count(*) as count, T.tag_photo_id as photo_id from " + tagTableName + " T " + 
+                "group by T.tag_photo_id order by 1 desc, T.tag_photo_id asc)T1, " + tagTableName + " T2, " + 
+                userTableName + " U where T1.photo_id = P.photo_id and P.album_id = A.album_id and " +
+                "U.user_id = T2.tag_subject_id and T2.tag_photo_id = T1.photo_id order by T1.count desc, " +
+                "T1.photo_id asc, U.user_id asc"
+                );
+            int count = 0;
+            String prePhotoID = "";
+            PhotoInfo p = new PhotoInfo("", "", "", "", "");
+            TaggedPhotoInfo tp = new TaggedPhotoInfo(p);
+            boolean moreThanN = false;
             while(rst.next())
             {
-                String photoId = rst.getString(2);
-                String albumId = rst.getString(3);
-                String albumName = rst.getString(4);
-                String photoCaption = rst.getString(5);
-                String photoLink = rst.getString(6);
-                PhotoInfo p = new PhotoInfo(photoId, albumId, albumName, photoCaption, photoLink);
-                TaggedPhotoInfo tp = new TaggedPhotoInfo(p);
-                ResultSet rst2 = stmt.executeQuery("select U.user_id, U.first_name, u.last_name from " +
-                    userTableName + " U, " + tagTableName + " T where U.user_id = T.tag_subject_id " +
-                    "and T.tag_photo_id = " + photoId);
-                while(rst2.next())
+                if(count>n)    
                 {
-                    Long uid = rst.getLong(1);
-                    String firstName = rst.getString(2);
-                    String lastName = rst.getString(3);
-                    tp.addTaggedUser(new UserInfo(uid, firstName, lastName));
+                    moreThanN = true;
+                    break;
                 }
-                rst2.close();
-                this.photosWithMostTags.add(tp);
+                String photoId = rst.getString(2);
+                if(!prePhotoID.equals(photoId))
+                {
+                    if(!rst.isFirst())
+                    {
+                        this.photosWithMostTags.add(tp);
+                    }
+                    String albumId = rst.getString(3);
+                    String albumName = rst.getString(4);
+                    String photoCaption = rst.getString(5);
+                    String photoLink = rst.getString(6);
+                    p = new PhotoInfo(photoId, albumId, albumName, photoCaption, photoLink);
+                    tp = new TaggedPhotoInfo(p);
+                    count++;
+                }
+                Long uid = rst.getLong(7);
+                String firstName = rst.getString(8);
+                String lastName = rst.getString(9);
+                tp.addTaggedUser(new UserInfo(uid, firstName, lastName));
+                
+                prePhotoID = photoId;
             }
+            if(!moreThanN)
+                this.photosWithMostTags.add(tp);
             rst.close();
             stmt.close();
         }catch(SQLException err){
@@ -331,22 +351,76 @@ public class MyFakebookOracle extends FakebookOracle {
         String sharedPhotoLink = "link";
         mp.addSharedPhoto(new PhotoInfo(sharedPhotoId, sharedPhotoAlbumId,
                 sharedPhotoAlbumName, sharedPhotoCaption, sharedPhotoLink));
-        this.bestMatches.add(mp);
+        this.bestMatches.add(mp);.
         */
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery(
-                "select count(*), U1.user_id, U2.user_id from " + userTableName + " U1, " + userTableName +
-                " U2, " + tagTableName + " T1," + tagTableName + " T2 where U1.gender = U2.gender and " +
-                " U2.year_of_birth - U1.year_of_birth <= " + yearDiff +" and U2.user_id > U1.user_id " +
-                "and U1.user_id = T1.tag_subject_id and U2.user_id = T2.user_id group by T1."
+                
+                "select T.count, U1.user_id, U1.first_name, U1.last_name, U1.year_of_birth, U2.user_id, " +
+                "U2.first_name, U2.last_name, U2.year_of_birth, P.photo_id, P.album_id, A.album_name, " +
+                "P.photo_caption, P.photo_link from " + userTableName + " U1, " + userTableName + " U2, " +
+                photoTableName + " P, " + albumTableName + " A, " +
+                
+                "(select count(*) as count, U.user1_id as user1_id, U.user2_id as user2_id from " +
+                
+                "(select U1.user_id as user1_id, U2.user_id as user2_id from "+ userTableName + " U1, " + 
+                userTableName + " U2, " + tagTableName + " T1, " + tagTableName + " T2 where U1.gender = U2.gender and " +
+                "T1.tag_photo_id = T2.tag_photo_id and U1.user_id = T1.tag_subject_id and U1.user_id < U2.user_id " +
+                " and U2.user_id = T2.tag_subject_id and abs(U2.year_of_birth - U1.year_of_birth) <= " + yearDiff +
+                " minus select F.user1_id as user1_id, F.user2_id as user2_id from " + friendsTableName + " F" +
+                ")U, " + tagTableName + " T1, " + tagTableName + " T2 where U.user1_id = T1.tag_subject_id and " +
+                
+                " U.user2_id = T2.tag_subject_id and T1.tag_photo_id = T2.tag_photo_id group by U.user1_id, U.user2_id " +
+                "order by 1 desc" +
+                ")T, " + 
+
+                tagTableName + " T1, " + tagTableName + " T2 where T1.tag_photo_id = T2.tag_photo_id and " +
+                "T1.tag_subject_id = T.user1_id and T2.tag_subject_id = T.user2_id and T1.tag_photo_id = P.photo_id " +
+                "and U1.user_id = T.user1_id and U2.user_id = T.user2_id and P.album_id = A.album_id " + 
+                "order by T.count desc, U1.user_id asc, U2.user_id asc"
+               
                 );
-
-
+            Long preU1Id = Long.MAX_VALUE;
+            Long preU2Id = Long.MIN_VALUE;
+            int count = 0;
+            MatchPair mp = new MatchPair(preU1Id, "", "", 0, preU2Id, "", "", 0);
+            boolean moreThanN = false;
             while(rst.next())
             {
-
+                if (count > n)
+                {
+                    moreThanN = true;
+                    break;
+                }
+                Long u1UserId = rst.getLong(2);
+                Long u2UserId = rst.getLong(6);
+                if (u1UserId != preU1Id || u2UserId != preU2Id)
+                {
+                    if(!rst.isFirst())
+                        this.bestMatches.add(mp);
+                    String u1FirstName = rst.getString(3);
+                    String u1LastName = rst.getString(4);
+                    int u1Year = rst.getInt(5);
+                    String u2FirstName = rst.getString(7);
+                    String u2LastName = rst.getString(8);
+                    int u2Year = rst.getInt(9);
+                    mp = new MatchPair(u1UserId, u1FirstName, u1LastName,
+                        u1Year, u2UserId, u2FirstName, u2LastName, u2Year);
+                    count ++ ;
+                }
+                String sharedPhotoId = rst.getString(10);
+                String sharedPhotoAlbumId = rst.getString(11);
+                String sharedPhotoAlbumName = rst.getString(12);
+                String sharedPhotoCaption = rst.getString(13);
+                String sharedPhotoLink = rst.getString(14);
+                mp.addSharedPhoto(new PhotoInfo(sharedPhotoId, sharedPhotoAlbumId,
+                    sharedPhotoAlbumName, sharedPhotoCaption, sharedPhotoLink));
+                preU1Id = u1UserId;
+                preU2Id = u2UserId;
             }
+            if(!moreThanN)
+                this.bestMatches.add(mp);
             rst.close();
             stmt.close();
         }catch(SQLException err){
@@ -369,6 +443,7 @@ public class MyFakebookOracle extends FakebookOracle {
     //
     @Override
     public void suggestFriendsByMutualFriends(int n) {
+/*
         Long user1_id = 123L;
         String user1FirstName = "User1FirstName";
         String user1LastName = "User1LastName";
@@ -381,17 +456,64 @@ public class MyFakebookOracle extends FakebookOracle {
         p.addSharedFriend(678L, "sharedFriend2FirstName", "sharedFriend2LastName");
         p.addSharedFriend(789L, "sharedFriend3FirstName", "sharedFriend3LastName");
         this.suggestedUsersPairs.add(p);
+*/        
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery(
-                "select U1.user_id, U1.first_name, U1.last_name, U2.user_id, U2.first_name, " +
-                "U2.last_name + from " + userTableName + " U1, " + userTableName + " U2, " +
-                friendsTableName + " F1, "
-                );
+                "select UF.count, U1.user_id, U1.first_name, U1.last_name, U2.user_id, U2.first_name, U2.last_name, " +
+                "SF.user_id, SF.first_name, SF.last_name from " + userTableName + " U1, " + userTableName + " U2, " +
+                userTableName + " SF, " + friendsTableName + " F1, " + friendsTableName + " F2, " +
+
+                "(select count(*) as count, UF.user1_id as user1_id, UF.user2_id as user2_id " +
+                "from " + friendsTableName + " F1, " + friendsTableName + " F2, " +
+                "(select U1.user_id as user1_id, U2.user_id as user2_id from " + userTableName + " U1, " +
+                userTableName + " U2 where U1.user_id < U2.user_id minus select user1_id, user2_id from " +
+                friendsTableName + ")UF " +
+                "where (UF.user1_id = F1.user1_id and F1.user2_id = F2.user2_id and UF.user2_id = F2.user1_id)" +
+                " or (UF.user1_id = F1.user1_id and F1.user2_id = F2.user1_id and UF.user2_id = F2.user2_id)" +
+                " or (UF.user1_id = F1.user2_id and F1.user1_id = F2.user1_id and UF.user2_id = F2.user2_id) " +
+                "group by UF.user1_id, UF.user2_id order by 1 desc) UF " + 
+                "where U1.user_id = UF.user1_id and U2.user_id = UF.user2_id and " +
+                "((U1.user_id = F1.user1_id and F1.user2_id = F2.user2_id and U2.user_id = F2.user1_id and SF.user_id = F1.user2_id) " +
+                "or (UF.user1_id = F1.user1_id and F1.user2_id = F2.user1_id and UF.user2_id = F2.user2_id and SF.user_id = F1.user2_id) " +
+                "or (UF.user1_id = F1.user2_id and F1.user1_id = F2.user1_id and UF.user2_id = F2.user2_id and SF.user_id = F1.user1_id)) " +
+                " order by UF.count desc, U1.user_id asc, U2.user_id asc");
+            Long preU1Id = Long.MAX_VALUE;
+            Long preU2Id = Long.MIN_VALUE;
+            int count = 0;
+            UsersPair p = new UsersPair(preU1Id, "", "", preU2Id, "", "");
+            boolean moreThanN = false;
+
             while(rst.next())
             {
-
+                if(count > n)
+                {
+                    moreThanN = true;
+                    break;
+                }
+                Long user1_id = rst.getLong(2);
+                Long user2_id = rst.getLong(5);
+                if(preU1Id != user1_id || preU2Id != user2_id)
+                {
+                    if(!rst.isFirst())
+                        this.suggestedUsersPairs.add(p);
+                    String user1FirstName = rst.getString(3);
+                    String user1LastName = rst.getString(4);
+                    String user2FirstName = rst.getString(6);
+                    String user2LastName = rst.getString(7);
+                    p = new UsersPair(user1_id, user1FirstName, user1LastName,
+                        user2_id, user2FirstName, user2LastName);
+                    count++;
+                }
+                Long sfUser_id = rst.getLong(8);
+                String sfFirstName = rst.getString(9);
+                String sfLastName = rst.getString(10);
+                p.addSharedFriend(sfUser_id, sfFirstName, sfLastName);
+                preU1Id = user1_id;
+                preU2Id = user2_id;
             }
+            if (!moreThanN)
+                this.suggestedUsersPairs.add(p);
             rst.close();
             stmt.close();
         }catch(SQLException err){
@@ -406,14 +528,18 @@ public class MyFakebookOracle extends FakebookOracle {
     // events in that state.  If there is a tie, return the names of all of the (tied) states.
     //
     public void findEventStates() {
+        /*
         this.eventCount = 12;
         this.popularStateNames.add("Michigan");
         this.popularStateNames.add("California");
+*/
         try(Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
             ResultSet.CONCUR_READ_ONLY)){
             ResultSet rst = stmt.executeQuery(
-                "select count(*) C.state_name from " + eventTableName + " E, " + cityTableName +
-                 "C where C.city_id = E.event_city_id group by C.city_id order by 1 desc");
+                "select count(*), E.state_name from " + "(select E.event_id as event_id, " +
+                "C.state_name as state_name from " + eventTableName + " E, " + cityTableName +
+                " C where C.city_id = E.event_city_id)E group by E.state_name order by 1 desc"
+                );
             while(rst.next())
             {
                 if(rst.isFirst())
@@ -517,8 +643,9 @@ public class MyFakebookOracle extends FakebookOracle {
                 hometownCityTableName + " H1, " + hometownCityTableName + " H2 where " +
                 "F.user1_id = U1.user_id and F.user2_id = U2.user_id and U1.user_id = H1.user_id " +
                 "and U2.user_id = H2.user_id and H1.hometown_city_id = H2.hometown_city_id and " +
+                "U1.last_name = U2.last_name and " +
                 "U1.year_of_birth - U2.year_of_birth < 10 and U1.year_of_birth - U2.year_of_birth > -10 " +
-                "and U1.user_id < U2.user_id order by U1.user_id, U2.user_id"
+                "and U1.user_id < U2.user_id order by U1.user_id asc, U2.user_id asc"
                 );
             while(rst.next())
             {
