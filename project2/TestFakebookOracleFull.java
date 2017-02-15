@@ -13,12 +13,12 @@ public class TestFakebookOracleFull {
 	
 	//static boolean PRINT_TIME = false;
 	static boolean PRINT_TIME = true;
-	static final long TIMEOUT = 65;
+	static final long TIMEOUT = 500;
 	static final TimeUnit TO_UNIT = TimeUnit.SECONDS;
 	
 	static String dataType = "PUBLIC"; 
-	static String oracleUserName = "<uniqname>"; //replace with your Oracle account name
-	static String password = "<password>"; //replace with your Oracle password
+	static String oracleUserName = "chienwli"; //replace with your Oracle account name
+	static String password = "GOgoblue0205"; //replace with your Oracle password
 
 	static FakebookOracle fbwz;
 	static OutputStreamWriter out;

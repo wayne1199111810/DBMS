@@ -18,7 +18,7 @@ public class TestFakebookOracle {
             FakebookOracle fbwz = new MyFakebookOracle(dataType, conn);
             OutputStreamWriter out = new OutputStreamWriter(System.out);
 
-/*
+
             // Query 0
             out.write(">>>>>>>>>Query0>>>>>>>>>>\n");
             fbwz.findMonthOfBirthInfo();
@@ -48,12 +48,12 @@ public class TestFakebookOracle {
             out.write(">>>>>>>>>Query5>>>>>>>>>>\n");
             fbwz.matchMaker(5, 2);
             fbwz.printBestMatches(out);
-*/
+
             // Query 6
             out.write(">>>>>>>>>Query6>>>>>>>>>>\n");
             fbwz.suggestFriendsByMutualFriends(5);
             fbwz.printMutualFriendsInfo(out);
-/*
+
             // Query 7
             out.write(">>>>>>>>>Query7>>>>>>>>>>\n");
             fbwz.findEventStates();
@@ -68,7 +68,7 @@ public class TestFakebookOracle {
             out.write(">>>>>>>>>Query9>>>>>>>>>>\n");
             fbwz.findPotentialSiblings();
             fbwz.printPotentialSiblings(out);
-*/
+
 
             conn.close();
         } catch (SQLException | IOException e) {
