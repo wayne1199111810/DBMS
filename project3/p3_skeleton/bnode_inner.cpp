@@ -1,5 +1,6 @@
 #include "bnode_inner.h"
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -16,7 +17,7 @@ VALUETYPE Bnode_inner::merge(Bnode_inner* rhs, int parent_idx) {
         insert(rhs->getChild(i), base_addr + i);
         insert(rhs->get(i));
     }
-    insert(rhs->getChild(rhs->num_children - 1), rhs->num_children);
+    insert(rhs->getChild(rhs->num_children - 1), base_addr + rhs->num_children - 1);
     rhs->clear();
     // delete rhs;
     return retVal;
@@ -27,8 +28,16 @@ VALUETYPE Bnode_inner::redistribute(Bnode_inner* rhs, int parent_idx) {
     assert(parent_idx >= 0);
     // TODO: Implement this
     assert(parent_idx < parent->getNumValues());
+    
     vector<Bnode*> all_children(children, children + num_values);
     vector<VALUETYPE> all_values(values, values + num_values);
+    
+    if(this->getNumChildren() == 1 && 1 == this->getNumValues()){
+        all_values = vector<VALUETYPE>(0);
+    } else if (rhs->getNumChildren() == 1 && 1 == rhs->getNumValues()){
+        all_values.erase(all_values.end() - 1);
+    }
+    
     VALUETYPE update_value = rhs->get(0);    
     all_values.push_back(this->parent->get(parent_idx)); // from parent
     for(unsigned int i = 0; i < rhs->getNumChildren(); i++){
@@ -45,11 +54,11 @@ VALUETYPE Bnode_inner::redistribute(Bnode_inner* rhs, int parent_idx) {
             insert(all_values[i]);
             insert(all_children[i + 1], i + 1);
         } else{
-            rhs->insert(all_children[i + 1], i + 1);
+            rhs->insert(all_children[i + 1], i - all_values.size() / 2);
             rhs->insert(all_values[i]);
         }
     }
-    rhs->insert(all_children[all_children.size() - 1], all_children.size() - 1);
+    rhs->insert(all_children[all_children.size() - 1], rhs->getNumChildren());
     assert((this->num_values >= (BTREE_FANOUT / 2)) && (rhs->num_values >= (BTREE_FANOUT / 2)));
     this->parent->replace_value(update_value, parent_idx);
     return update_value;

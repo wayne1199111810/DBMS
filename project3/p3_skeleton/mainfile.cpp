@@ -230,7 +230,7 @@ int main() {
     splitTestFromSpec();
     testForRedistribution();
     large_test1();
-    // large_test2();
+    large_test2();
     // stress_insert(500);
     // stress_insert_delete(500);
     
