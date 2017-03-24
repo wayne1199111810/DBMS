@@ -36,7 +36,10 @@ public:
     // ======================= To implement ===============================
     //                (feel free to change if you want)
     //
-
+    Bnode_inner* getLeft();
+    Bnode_inner* getRight();
+    bool hasLeft();
+    bool hasRight();
     // Merges this object with rhs
     // Input:   The other node that this object should be merged with
     //          The index in the parent node that contains the value that this merge operation should

@@ -28,6 +28,16 @@ public:
     Btree();
     ~Btree();
 
+    // see insert
+    Bnode_leaf* findLeafBy(VALUETYPE);
+    void newParentIfNotHaveOne(Bnode*);
+
+    // see remove
+    void updateParentWithMerge(Bnode_leaf*);
+    void updateByRedistribute(VALUETYPE, Bnode_leaf*);
+    void cleanTreeByRemove(Bnode_inner*);
+    void removeChildValueOf(Bnode_inner*, int);
+
     //
     // ======================= To implement ===============================
     //                      (Do NOT change these)

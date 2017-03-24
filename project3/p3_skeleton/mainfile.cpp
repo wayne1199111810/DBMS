@@ -4,9 +4,19 @@
 #include <cassert>
 #include <cstdlib>
 #include <fstream>
+#include <vector>
 
 using namespace std;
 
+void print(vector<Data*> value){
+    cout << "[";
+    for (unsigned int i = 0; i < value.size(); i++){
+        cout << value[i]->value;
+        if( i != value.size() - 1)
+            cout << ", ";
+    }
+    cout << "]" <<  endl;
+}
 
 void small_test() {
     cout << "SMALL TEST: " << endl;
@@ -192,19 +202,37 @@ void stress_insert_delete(int itr) {
     }
 }
 
+void simple_test() {
+cout << "simple TEST: " << endl;
+    Btree btree;
+    btree.insert(1); btree.insert(2); btree.insert(3); btree.insert(7); btree.insert(8);
+    cout << btree << endl;
+    btree.insert(10); btree.insert(11); btree.insert(9); btree.insert(12); btree.insert(13);
+    cout << btree << endl;
+    btree.insert(4);btree.insert(5);btree.insert(6);btree.insert(14);btree.insert(15);
+    cout << btree << endl;
+    
+    btree.remove(9);
+    cout << btree << endl;
+    cout << "###########################" << endl;
+    
+    assert(btree.isValid());
+}
+
+
 int main() {
     std::string filename = std::string("expected_") + std::to_string(BTREE_FANOUT) + "_" + std::to_string(BTREE_LEAF_SIZE)
     + ".out";
     //freopen(filename.c_str(),"w",stdout); //Comment out if you want to write to a file. You should to set the
                                             //values in constants.h to create the corresponding output
-    
+    simple_test();
     small_test();
     splitTestFromSpec();
     testForRedistribution();
     large_test1();
-    large_test2();
-    stress_insert(500);
-    stress_insert_delete(500);
+    // large_test2();
+    // stress_insert(500);
+    // stress_insert_delete(500);
     
     return 0;
 }
