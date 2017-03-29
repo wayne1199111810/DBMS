@@ -32,7 +32,6 @@ public:
     // ======================= To implement ===============================
     //                (feel free to change if you want)
     //
-
     // Merges this object with rhs
     // Inputs:  The other leaf node this node should be merged with
     // Output:  The value that should be removed from the parent node

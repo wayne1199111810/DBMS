@@ -34,9 +34,10 @@ public:
 
     // see remove
     void updateParentWithMerge(Bnode_leaf*);
-    void updateByRedistribute(VALUETYPE, Bnode_leaf*);
+    void updateByRedistribute(Bnode_leaf*);
     void cleanTreeByRemove(Bnode_inner*);
-    void removeChildValueOf(Bnode_inner*, int);
+
+    // void printLeaf();
 
     //
     // ======================= To implement ===============================

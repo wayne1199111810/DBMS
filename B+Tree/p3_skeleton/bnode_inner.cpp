@@ -1,25 +1,34 @@
 #include "bnode_inner.h"
 #include <vector>
-#include <iostream>
 
 using namespace std;
 
 VALUETYPE Bnode_inner::merge(Bnode_inner* rhs, int parent_idx) {
     assert(rhs->parent == parent); // can only merge siblings
-    assert(rhs->num_values > 0);
+    assert(rhs->num_values >= 0);
     // TODO: Implement this
+
     assert(rhs->getNumChildren() + this->getNumChildren() <= BTREE_FANOUT);
-    VALUETYPE retVal = rhs->get(0);
-    VALUETYPE parent_val = this->parent->get(parent_idx);
-    int base_addr = num_children;
-    this->insert(parent_val);
-    for (int i = 0; i < rhs->num_children - 1; ++i){
-        insert(rhs->getChild(i), base_addr + i);
-        insert(rhs->get(i));
+    VALUETYPE retVal = parent->get(parent->find_child(this));
+    if (!hasEqualChildValue() || !rhs->hasEqualChildValue()){
+        if (rhs->hasEqualChildValue())
+            rhs->remove_value(rhs->getNumValues() - 1);
+        if (!this->hasEqualChildValue())
+            insert(parent->get(parent->find_child(this)));
     }
-    insert(rhs->getChild(rhs->num_children - 1), base_addr + rhs->num_children - 1);
+    for (int i = 0; i < rhs->getNumValues(); i++)
+        insert(rhs->get(i));
+    int original_child_num = getNumChildren();
+    for (int i = 0; i < rhs->getNumChildren(); i++)
+    {
+        rhs->getChild(i)->parent = this;
+        insert(rhs->getChild(i), original_child_num + i);
+    }
+
+    parent->remove_value(parent->find_child(this));
+    parent->remove_child(parent->find_child(rhs));
     rhs->clear();
-    // delete rhs;
+    delete rhs;
     return retVal;
 }
 
@@ -28,39 +37,34 @@ VALUETYPE Bnode_inner::redistribute(Bnode_inner* rhs, int parent_idx) {
     assert(parent_idx >= 0);
     // TODO: Implement this
     assert(parent_idx < parent->getNumValues());
-    
-    vector<Bnode*> all_children(children, children + num_values);
-    vector<VALUETYPE> all_values(values, values + num_values);
-    
-    if(this->getNumChildren() == 1 && 1 == this->getNumValues()){
-        all_values = vector<VALUETYPE>(0);
-    } else if (rhs->getNumChildren() == 1 && 1 == rhs->getNumValues()){
-        all_values.erase(all_values.end() - 1);
+    VALUETYPE update_value;
+    vector<Bnode*> all_children(children, children + num_children);
+    vector<VALUETYPE> all_values;
+    if (rhs->getNumValues() > 0) {
+        all_values = vector<VALUETYPE>(values, values + num_values);
+        update_value = rhs->get(0);
+    }  else {
+        all_values = vector<VALUETYPE>(values, values + num_values - 1);
+        update_value = this->get(this->getNumValues() - 1);
     }
-    
-    VALUETYPE update_value = rhs->get(0);    
-    all_values.push_back(this->parent->get(parent_idx)); // from parent
-    for(unsigned int i = 0; i < rhs->getNumChildren(); i++){
+    all_values.push_back(parent->get(parent->find_child(this))); // from parent
+    for(int i = 0; i < rhs->getNumChildren(); i++)
         all_children.push_back(rhs->getChild(i));
-        if(i != 0 && i < rhs->getNumValues())
-            all_values.push_back(rhs->get(i));
-    }
+    for(int i = 1; i < rhs->getNumValues(); i++)
+        all_values.push_back(rhs->get(i));
+
     rhs->clear();
     this->clear();
-    insert(all_children[0], 0);
-    for(unsigned int i = 0; i < all_values.size(); i++){
-        if(i < all_values.size() / 2)
-        {
-            insert(all_values[i]);
-            insert(all_children[i + 1], i + 1);
-        } else{
-            rhs->insert(all_children[i + 1], i - all_values.size() / 2);
-            rhs->insert(all_values[i]);
-        }
+    for(unsigned int i = 0; i < all_children.size(); i++) {
+        if(i < all_children.size()/2) insert(all_children[i], i);
+        else rhs->insert(all_children[i], i - all_children.size() / 2);
     }
-    rhs->insert(all_children[all_children.size() - 1], rhs->getNumChildren());
-    assert((this->num_values >= (BTREE_FANOUT / 2)) && (rhs->num_values >= (BTREE_FANOUT / 2)));
-    this->parent->replace_value(update_value, parent_idx);
+    for(unsigned int i = 0; i < all_values.size(); i++){
+        if(i < all_values.size() / 2) insert(all_values[i]);
+        else rhs->insert(all_values[i]);
+    }
+    assert((num_values >= (BTREE_FANOUT / 2)) && (rhs->num_values >= (BTREE_FANOUT / 2)));
+    parent->replace_value(update_value, parent->find_child(this));
     return update_value;
 }
 
@@ -146,4 +150,13 @@ Bnode_inner* Bnode_inner::getLeft(){
     }
     else 
         return nullptr;
+}
+
+bool Bnode_inner::hasEqualChildValue(){
+    return getNumValues() == getNumChildren();
+}
+
+bool Bnode_inner:: isValid(){
+    bool valid_size = (getNumValues() >= (BTREE_FANOUT / 2)) && (getNumChildren() > (BTREE_FANOUT / 2));
+    return (getNumValues() + 1 == getNumChildren()) && valid_size;
 }
