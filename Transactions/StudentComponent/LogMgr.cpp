@@ -6,9 +6,14 @@
 
 typedef unsigned int zplus;
 
-int smallestRecLSN(map<int, int>);
-void redoUpdate(UpdateLogRecord*, StorageEngine*, map <int, int>);
-void redoCLR(CompensationLogRecord*, StorageEngine*, map <int, int>);
+int smallestRecLSN(map<int, int>, vector <LogRecord*>);
+bool redoUpdate(UpdateLogRecord*, StorageEngine*, map <int, int>);
+bool redoCLR(CompensationLogRecord*, StorageEngine*, map <int, int>);
+void lastLSNofAliveTxs(map<int, txTableEntry>, priority_queue<int>&);
+int move(priority_queue<int>&);
+LogRecord* getLogRecord(int maxLSN, vector <LogRecord*> log);
+void redoEnd(StorageEngine*, map <int, txTableEntry>&, vector <LogRecord*>&);
+bool isExist(vector<LogRecord*>, int);
 
 int LogMgr::getLastLSN(int txnum){
 	if (tx_table.find(txnum) != tx_table.end()) {
@@ -27,10 +32,9 @@ void LogMgr::setLastLSN(int txnum, int lsn){
 }
 
 void LogMgr::flushLogTail(int maxLSN){
-	zplus i = 0;
-	while (logtail.size() > i && logtail[i]->getLSN() <= maxLSN ) {
+	zplus i;
+	for (i = 0; i < logtail.size() && logtail[i]->getLSN() <= maxLSN; i++) {
 		se->updateLog(logtail[i]->toString());
-		i++;
 	}
 	logtail.erase(logtail.begin(), logtail.begin() + i);
 }
@@ -38,7 +42,7 @@ void LogMgr::flushLogTail(int maxLSN){
 void LogMgr::analyze(vector <LogRecord*> log){
 	int master = se->get_master();
 	int start_log = 0;
-	for (zplus i = log.size() - 1; i >= 0; i--){
+	for (int i = log.size() - 1; i >= 0; i--){
 		if (log[i]->getLSN() != master) {
 			continue;
 		}
@@ -47,55 +51,98 @@ void LogMgr::analyze(vector <LogRecord*> log){
 			break;
 		}
 	}
-	for(zplus i = start_log + 1; i < log.size(); i++){
+	for(zplus i = start_log; i < log.size(); i++){
 		if(log[i]->getType() == END_CKPT) {
 			tx_table = ((ChkptLogRecord*)log[i])->getTxTable();
 			dirty_page_table = ((ChkptLogRecord*)log[i])->getDirtyPageTable();
 		} else if(log[i]->getType() == END) {
 			tx_table.erase(log[i]->getTxID());
-		}
-		if(tx_table.find(log[i]->getTxID()) == tx_table.end()) {
-			tx_table[log[i]->getTxID()] = txTableEntry(log[i]->getLSN(), U);
 		} else {
-			tx_table[log[i]->getTxID()].lastLSN = log[i]->getLSN();
-		}
-		if(log[i]->getType() == UPDATE) {
-			if(dirty_page_table.find(((UpdateLogRecord*)log[i])->getPageID()) == dirty_page_table.end()) {
-				dirty_page_table[((UpdateLogRecord*)log[i])->getPageID()] = log[i]->getLSN();
+			if(tx_table.find(log[i]->getTxID()) == tx_table.end()) {
+				tx_table[log[i]->getTxID()] = txTableEntry(log[i]->getLSN(), U);
+			} else {
+				tx_table[log[i]->getTxID()].lastLSN = log[i]->getLSN();
 			}
-		} else if(log[i]->getType() == COMMIT) {
-			tx_table[log[i]->getTxID()].status = C;
+			if(log[i]->getType() == UPDATE) {
+				if(dirty_page_table.find(((UpdateLogRecord*)log[i])->getPageID()) == dirty_page_table.end()) {
+					dirty_page_table[((UpdateLogRecord*)log[i])->getPageID()] = log[i]->getLSN();
+				}
+			} else if(log[i]->getType() == COMMIT) {
+				tx_table[log[i]->getTxID()].status = C;
+			}
 		}
 	}
 }
 
 bool LogMgr::redo(vector <LogRecord*> log){
-	int start_log = smallestRecLSN(dirty_page_table);
+	int start_log = smallestRecLSN(dirty_page_table, log);
 	for(zplus i = start_log; i < log.size(); i++){
+
 		if(log[i]->getType() == UPDATE) {
-			redoUpdate((UpdateLogRecord*)log[i], se, dirty_page_table);
+			if(!redoUpdate((UpdateLogRecord*)log[i], se, dirty_page_table))
+				return false;
 		} else if(log[i]->getType() == CLR) {
-			redoCLR((CompensationLogRecord*)log[i], se, dirty_page_table);
+			if(!redoCLR((CompensationLogRecord*)log[i], se, dirty_page_table))
+				return false;
 		}
 	}
-	// TODO
-	return false;
+	redoEnd(se, tx_table, logtail);
+	return true;
 }
 
-// TODO
 void LogMgr::undo(vector <LogRecord*> log, int txnum){
-	queue<int> to_undo;
+	priority_queue<int> to_undo;
 	if(txnum != NULL_TX) {
-
+		to_undo.push(getLastLSN(txnum));
 	} else {
-
+		lastLSNofAliveTxs(tx_table, to_undo);
 	}
-	for(auto it = log.end() - 1; it >= log.begin(); it--) {
+	while(!to_undo.empty()) {
+		int maxLSN = move(to_undo);
+		LogRecord* current_log = getLogRecord(maxLSN, log);
+		if(current_log->getType() == UPDATE) {
 
+			UpdateLogRecord* update = (UpdateLogRecord*)current_log;
+			int lsn = se->nextLSN();
+			int txid = current_log->getTxID();
+			int prevLSN = getLastLSN(txid);
+			setLastLSN(txid, lsn);
+			int page_id = update->getPageID();
+			int offset = update->getOffset();
+			string before_image = update->getBeforeImage();
+			int undoNextLSN = update->getprevLSN();
+			logtail.push_back(new CompensationLogRecord(lsn, prevLSN, txid, page_id, offset, before_image, undoNextLSN));
+			if(undoNextLSN != NULL_LSN) {
+
+				to_undo.push(undoNextLSN);
+			} else {
+				logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
+				tx_table.erase(txid);
+			}
+		} else if(current_log->getType() == CLR) {
+			int undo_nextLSN = ((CompensationLogRecord*)current_log)->getUndoNextLSN();
+			if(undo_nextLSN != NULL_LSN) {
+				to_undo.push(undo_nextLSN);
+			} else {
+				int lsn = current_log->getLSN();
+				int txid = current_log->getTxID();
+				logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
+				tx_table.erase(txid);
+			}
+		} else if(current_log->getType() == ABORT) {
+			if(current_log->getprevLSN() != NULL_LSN) {
+				to_undo.push(current_log->getprevLSN());
+			} else {
+				int lsn = current_log->getLSN();
+				int txid = current_log->getTxID();
+				logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
+				tx_table.erase(txid);
+			}
+		}
 	}
 }
 
-vector<LogRecord*> stringToLRVector(string logstring){
+vector<LogRecord*> LogMgr::stringToLRVector(string logstring){
 	vector<LogRecord*> result;
 	istringstream stream(logstring);
 	string line;
@@ -106,10 +153,24 @@ vector<LogRecord*> stringToLRVector(string logstring){
 	return result;
 }
 
-// TODO
 void LogMgr::abort(int txid){
-	
+	int lsn = se->nextLSN();
+	logtail.push_back(new LogRecord(lsn, getLastLSN(txid), txid, ABORT));
+	setLastLSN(txid, lsn);
+	vector<LogRecord*> disk_log = stringToLRVector(se->getLog());
+	vector <LogRecord*> log(0);
+	for(zplus i = 0; i < disk_log.size(); i++){
+		if(disk_log[i]->getTxID() == txid)
+			log.push_back(disk_log[i]);
+	}
+	for(zplus i = 0; i < logtail.size(); i++) {
+		if(logtail[i]->getTxID() == txid && !isExist(log, logtail[i]->getLSN()))
+			log.push_back(logtail[i]);
+	}
 
+	for (zplus i = 0; i < log.size(); i++) {
+	}
+	undo(log, txid);
 }
 
 void LogMgr::checkpoint(){
@@ -121,6 +182,9 @@ void LogMgr::checkpoint(){
 	// end check point
 	lsn = se->nextLSN();
 	logtail.push_back(new ChkptLogRecord(lsn, lsn - 1, NULL_TX, tx_table, dirty_page_table));
+	// TODO not sure should flush the checkpoint
+	flushLogTail(lsn);
+
 }
 
 void LogMgr::commit(int txid){
@@ -130,36 +194,36 @@ void LogMgr::commit(int txid){
 	} else {
 		tx_table[txid] = txTableEntry(lsn, C);
 	}
-	setLastLSN(txid, lsn);
 	logtail.push_back(new LogRecord(lsn, getLastLSN(txid), txid, COMMIT));
 	flushLogTail(lsn);
+	setLastLSN(txid, lsn);
 	logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
 	tx_table.erase(txid);
 }
 
 void LogMgr::pageFlushed(int page_id){
-	if(logtail.size() != 0)
-	flushLogTail(logtail[logtail.size() - 1]->getLSN());
-	if(dirty_page_table.find(page_id) != dirty_page_table.end()) {
-		dirty_page_table.erase(page_id);
-	}
+	int maxLSN = se->getLSN(page_id);
+	flushLogTail(maxLSN);
+	dirty_page_table.erase(page_id);
 }
 
 // TODO
 void LogMgr::recover(string log){
-	// vector<LogRecord*> disk_log = stringToLRVector(log);
-	// analyze(disk_log);
-	// redo(disk_log);
-	// undo(disk_log);
+	vector<LogRecord*> disk_log = stringToLRVector(log);	
+	analyze(disk_log);
+	if(redo(disk_log)) {
+		undo(disk_log);
+	}
+
 }
 
 int LogMgr::write(int txid, int page_id, int offset, string input, string oldtext){
 	int lsn = se->nextLSN();
+	logtail.push_back(new UpdateLogRecord(lsn, getLastLSN(txid), txid, page_id, offset, oldtext, input));
 	if (dirty_page_table.find(page_id) == dirty_page_table.end()) {
 		dirty_page_table[page_id] = lsn;
 	}
 	setLastLSN(txid, lsn);
-	logtail.push_back(new UpdateLogRecord(lsn, getLastLSN(txid), txid, page_id, offset, oldtext, input));
 	return lsn;
 }
 
@@ -167,31 +231,81 @@ void LogMgr::setStorageEngine(StorageEngine* engine){
 	se = engine;
 }
 
-int smallestRecLSN(map<int, int> dirty_page_table) {
+int smallestRecLSN(map<int, int> dirty_page_table, vector <LogRecord*> log) {
 	int smallest = INT_MAX;
 	for (auto const & row : dirty_page_table) {
 		if(row.second < smallest)
 			smallest = row.second;
 	}
-	return smallest;
+	int idx = 0;
+	if(smallest != INT_MAX) {
+		for(zplus i = 0; i < log.size(); i++) {
+			if (log[i]->getLSN() == smallest) {
+				idx = i;
+				break;
+			}
+		}
+	}
+	return idx;
 }
 
-void redoUpdate(UpdateLogRecord* log, StorageEngine* se, map <int, int> dirty_page_table) {
+bool redoUpdate(UpdateLogRecord* log, StorageEngine* se, map <int, int> dirty_page_table) {
 	if(dirty_page_table.find(log->getPageID()) != dirty_page_table.end()) {
 		if(dirty_page_table[log->getPageID()] <= log->getLSN()) {
 			if (se->getLSN(log->getPageID()) < log->getLSN()) {
-				se->pageWrite(log->getPageID(), log->getOffset(), log->getAfterImage(), log->getLSN());
+				return se->pageWrite(log->getPageID(), log->getOffset(), log->getAfterImage(), log->getLSN());
 			}
+		}
+	}
+	return true;
+}
+
+bool redoCLR(CompensationLogRecord* log, StorageEngine* se, map <int, int> dirty_page_table) {	
+	if(dirty_page_table.find(log->getPageID()) != dirty_page_table.end()) {
+		if(dirty_page_table[log->getPageID()] <= log->getLSN()) {
+			if (se->getLSN(log->getPageID()) < log->getLSN()) {
+				return se->pageWrite(log->getPageID(), log->getOffset(), log->getAfterImage(), log->getLSN());
+			}
+		}
+	}
+	return true;
+}
+
+void redoEnd(StorageEngine* se, map <int, txTableEntry>& tx_table, vector <LogRecord*>& logtail){
+	for(auto const & entry : tx_table) {
+		if(entry.second.status == C){
+			logtail.push_back(new LogRecord(se->nextLSN(), entry.second.lastLSN, entry.first, END));
+			tx_table.erase(entry.first);
 		}
 	}
 }
 
-void redoCLR(CompensationLogRecord* log, StorageEngine* se, map <int, int> dirty_page_table) {
-	if(dirty_page_table.find(log->getPageID()) != dirty_page_table.end()) {
-		if(dirty_page_table[log->getPageID()] <= log->getLSN()) {
-			if (se->getLSN(log->getPageID()) < log->getLSN()) {
-				se->pageWrite(log->getPageID(), log->getOffset(), log->getAfterImage(), log->getLSN());
-			}
+void lastLSNofAliveTxs(map<int, txTableEntry> tx_table, priority_queue<int>&to_undo){
+	for(auto it = tx_table.begin(); it != tx_table.end(); it++) {
+		if(it->second.status == U) {
+			to_undo.push(it->second.lastLSN);
 		}
 	}
+}
+
+int move(priority_queue<int> &to_undo) {
+	int front = to_undo.top();
+	to_undo.pop();
+	return front;
+}
+
+LogRecord* getLogRecord(int maxLSN, vector <LogRecord*> log) {
+	for(zplus i = 0; i < log.size(); i++) {
+		if (log[i]->getLSN() == maxLSN)
+			return log[i];
+	}
+	return nullptr;
+}
+
+bool isExist(vector<LogRecord*> log, int lsn) {
+	for(zplus i = 0; i < log.size(); i++) {
+		if(log[i]->getLSN() == lsn)
+			return true;
+	}
+	return false;
 }

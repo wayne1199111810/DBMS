@@ -26,5 +26,25 @@ LogMgr.o: StudentComponent/LogMgr.cpp StudentComponent/LogMgr.h StorageEngine/St
 StorageEngine.o: StorageEngine/StorageEngine.cpp StorageEngine/StorageEngine.h StudentComponent/LogMgr.h
 	$(CC) $(CFLAGS) StorageEngine/StorageEngine.cpp
 
+# clean:
+# 	rm -f *.o
+tests:
+	./main testcases/test00
+	./main testcases/test01
+	./main testcases/test02
+	./main testcases/test03
+	./main testcases/test04
+	./main testcases/test05
+	# add additional tests here.
+	# finally run the gcov tool to generate the test coverage file.
+	gcov LogMgr.cpp
+	# finally, view the LogMgr.cpp.gcov file in an editor or using "more".
+	# Any lines that start with ##### have not executed in any of your
+	# tests. Add more tests for a more thorough testing and manually
+	# verify that the output is as you expect.
+
+
 clean:
-	rm -f *.o
+	rm -f *.o *.gcno *.gcov *.gcda
+	rm -f output/log/*
+	rm -f output/dbs/*

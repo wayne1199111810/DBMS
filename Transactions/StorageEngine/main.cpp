@@ -52,6 +52,7 @@ void runTestcase(string filename) {
     stringstream ss(contents);
     string ifcrash;
     ss >> ifcrash;
+    // cout << ifcrash << endl;
     // if it looks like <crash {5 2}>, call crash({5,2}), where {5, 2} is a vector of ints.
     if (ifcrash == "crash") {
       string intvector;
