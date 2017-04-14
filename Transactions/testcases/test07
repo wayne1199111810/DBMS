@@ -1,0 +1,10 @@
+StorageEngine/sampleDBFile.txt
+checkpoint
+1 write 5 0 one
+2 write 3 0 two
+1 abort 10
+3 write 3 0 three
+2 write 5 0 NBA
+crash {6}
+1 write
+end

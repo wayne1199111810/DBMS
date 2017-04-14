@@ -35,9 +35,11 @@ tests:
 	./main testcases/test03
 	./main testcases/test04
 	./main testcases/test05
+	./main testcases/test06
+	./main testcases/test07
+	./main testcases/test08
 	# add additional tests here.
 	# finally run the gcov tool to generate the test coverage file.
-	gcov LogMgr.cpp
 	# finally, view the LogMgr.cpp.gcov file in an editor or using "more".
 	# Any lines that start with ##### have not executed in any of your
 	# tests. Add more tests for a more thorough testing and manually

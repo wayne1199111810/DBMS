@@ -14,6 +14,7 @@ int move(priority_queue<int>&);
 LogRecord* getLogRecord(int maxLSN, vector <LogRecord*> log);
 void redoEnd(StorageEngine*, map <int, txTableEntry>&, vector <LogRecord*>&);
 bool isExist(vector<LogRecord*>, int);
+int mostRecentCheckPoint(vector <LogRecord*>, int);
 
 int LogMgr::getLastLSN(int txnum){
 	if (tx_table.find(txnum) != tx_table.end()) {
@@ -41,16 +42,17 @@ void LogMgr::flushLogTail(int maxLSN){
 
 void LogMgr::analyze(vector <LogRecord*> log){
 	int master = se->get_master();
-	int start_log = 0;
-	for (int i = log.size() - 1; i >= 0; i--){
-		if (log[i]->getLSN() != master) {
-			continue;
-		}
-		else { 
-			start_log = i;
-			break;
-		}
-	}
+	// int start_log = 0;
+	// for (int i = log.size() - 1; i >= 0; i--){
+	// 	if (log[i]->getLSN() != master) {
+	// 		continue;
+	// 	}
+	// 	else { 
+	// 		start_log = i;
+	// 		break;
+	// 	}
+	// }
+	int start_log = mostRecentCheckPoint(log, master);
 	for(zplus i = start_log; i < log.size(); i++){
 		if(log[i]->getType() == END_CKPT) {
 			tx_table = ((ChkptLogRecord*)log[i])->getTxTable();
@@ -77,14 +79,13 @@ void LogMgr::analyze(vector <LogRecord*> log){
 bool LogMgr::redo(vector <LogRecord*> log){
 	int start_log = smallestRecLSN(dirty_page_table, log);
 	for(zplus i = start_log; i < log.size(); i++){
-
 		if(log[i]->getType() == UPDATE) {
 			if(!redoUpdate((UpdateLogRecord*)log[i], se, dirty_page_table))
 				return false;
 		} else if(log[i]->getType() == CLR) {
 			if(!redoCLR((CompensationLogRecord*)log[i], se, dirty_page_table))
 				return false;
-		}
+		} 
 	}
 	redoEnd(se, tx_table, logtail);
 	return true;
@@ -101,19 +102,22 @@ void LogMgr::undo(vector <LogRecord*> log, int txnum){
 		int maxLSN = move(to_undo);
 		LogRecord* current_log = getLogRecord(maxLSN, log);
 		if(current_log->getType() == UPDATE) {
-
 			UpdateLogRecord* update = (UpdateLogRecord*)current_log;
 			int lsn = se->nextLSN();
 			int txid = current_log->getTxID();
 			int prevLSN = getLastLSN(txid);
-			setLastLSN(txid, lsn);
 			int page_id = update->getPageID();
 			int offset = update->getOffset();
 			string before_image = update->getBeforeImage();
 			int undoNextLSN = update->getprevLSN();
+			setLastLSN(txid, lsn);
 			logtail.push_back(new CompensationLogRecord(lsn, prevLSN, txid, page_id, offset, before_image, undoNextLSN));
+			// TODO push WRITE PAGE
+			if(!se->pageWrite(page_id, offset, before_image, lsn))
+				return;
+			if(dirty_page_table.find(page_id) == dirty_page_table.end())
+				dirty_page_table[page_id] = lsn;
 			if(undoNextLSN != NULL_LSN) {
-
 				to_undo.push(undoNextLSN);
 			} else {
 				logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
@@ -133,9 +137,7 @@ void LogMgr::undo(vector <LogRecord*> log, int txnum){
 			if(current_log->getprevLSN() != NULL_LSN) {
 				to_undo.push(current_log->getprevLSN());
 			} else {
-				int lsn = current_log->getLSN();
 				int txid = current_log->getTxID();
-				logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
 				tx_table.erase(txid);
 			}
 		}
@@ -167,9 +169,6 @@ void LogMgr::abort(int txid){
 		if(logtail[i]->getTxID() == txid && !isExist(log, logtail[i]->getLSN()))
 			log.push_back(logtail[i]);
 	}
-
-	for (zplus i = 0; i < log.size(); i++) {
-	}
 	undo(log, txid);
 }
 
@@ -182,9 +181,7 @@ void LogMgr::checkpoint(){
 	// end check point
 	lsn = se->nextLSN();
 	logtail.push_back(new ChkptLogRecord(lsn, lsn - 1, NULL_TX, tx_table, dirty_page_table));
-	// TODO not sure should flush the checkpoint
 	flushLogTail(lsn);
-
 }
 
 void LogMgr::commit(int txid){
@@ -195,8 +192,8 @@ void LogMgr::commit(int txid){
 		tx_table[txid] = txTableEntry(lsn, C);
 	}
 	logtail.push_back(new LogRecord(lsn, getLastLSN(txid), txid, COMMIT));
-	flushLogTail(lsn);
 	setLastLSN(txid, lsn);
+	flushLogTail(lsn);
 	logtail.push_back(new LogRecord(se->nextLSN(), lsn, txid, END));
 	tx_table.erase(txid);
 }
@@ -207,7 +204,6 @@ void LogMgr::pageFlushed(int page_id){
 	dirty_page_table.erase(page_id);
 }
 
-// TODO
 void LogMgr::recover(string log){
 	vector<LogRecord*> disk_log = stringToLRVector(log);	
 	analyze(disk_log);
@@ -247,6 +243,20 @@ int smallestRecLSN(map<int, int> dirty_page_table, vector <LogRecord*> log) {
 		}
 	}
 	return idx;
+}
+
+int mostRecentCheckPoint(vector <LogRecord*> log, int master) {
+	int start_log = 0;
+	for (int i = log.size() - 1; i >= 0; i--){
+		if (log[i]->getLSN() != master) {
+			continue;
+		}
+		else { 
+			start_log = i;
+			break;
+		}
+	}
+	return start_log;
 }
 
 bool redoUpdate(UpdateLogRecord* log, StorageEngine* se, map <int, int> dirty_page_table) {

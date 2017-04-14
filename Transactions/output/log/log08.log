@@ -1,0 +1,43 @@
+2	-1	5	update	1	0	xxx	aaa
+3	2	5	update	4	0	xxx	bbb
+4	3	5	update	5	0	xxx	ccc
+5	4	5	update	6	0	xxx	ddd
+6	5	5	update	7	0	xxx	eee
+7	6	5	update	8	0	xxx	fff
+8	7	5	update	9	0	xxx	ggg
+9	8	5	update	10	0	xxx	hhh
+10	9	5	update	11	0	xxx	iii
+11	10	5	update	12	0	xxx	jjj
+13	11	5	CLR	12	0	xxx	10
+14	13	5	CLR	11	0	xxx	9
+15	14	5	CLR	10	0	xxx	8
+16	15	5	CLR	9	0	xxx	7
+17	16	5	CLR	8	0	xxx	6
+18	17	5	CLR	7	0	xxx	5
+19	18	5	CLR	6	0	xxx	4
+20	19	5	CLR	5	0	xxx	3
+21	20	5	CLR	4	0	xxx	2
+22	21	5	CLR	1	0	xxx	-1
+23	22	5	end
+24	-1	4	update	16	0	xxx	zzz
+25	24	4	update	17	0	xxx	zzz
+26	25	4	update	18	0	xxx	zzz
+27	26	4	update	19	0	xxx	zzz
+28	27	4	update	20	0	xxx	zzz
+29	28	4	update	21	0	xxx	zzz
+30	29	4	update	22	0	xxx	zzz
+31	30	4	commit
+33	31	4	end
+34	-1	1	update	1	0	xxx	aaa
+35	34	1	update	4	0	xxx	bbb
+36	35	1	update	5	0	xxx	ccc
+37	36	1	update	6	0	xxx	ddd
+38	37	1	update	7	0	xxx	eee
+39	38	1	update	8	0	xxx	fff
+40	39	1	update	9	0	xxx	ggg
+41	40	1	update	10	0	xxx	hhh
+42	41	1	update	11	0	xxx	iii
+43	42	1	update	12	0	xxx	jjj
+44	43	1	update	13	0	xxx	kkk
+45	44	1	update	14	0	xxx	lll
+46	45	1	update	2	0	xxx	mmm

@@ -1,0 +1,25 @@
+2	-1	1	update	2	0	xxx	one
+3	-1	2	update	3	0	xxx	two
+4	3	2	commit
+8	4	2	end
+9	2	1	CLR	2	0	xxx	-1
+10	9	1	end
+11	-1	4	update	4	0	xxxx	help
+12	11	4	update	1	0	xxx	car
+13	-1	-1	begin_checkpoint
+14	13	-1	end_checkpoint	{ [ 4 12 U ]}	{ [ 1 12 ] [ 2 2 ] [ 3 3 ] [ 4 11 ]}
+15	12	4	abort
+16	15	4	CLR	1	0	xxx	11
+17	16	4	CLR	4	0	xxxx	-1
+18	17	4	end
+19	-1	5	update	1	0	xxx	aaa
+20	19	5	update	4	0	xxx	bbb
+21	20	5	update	5	0	xxx	ccc
+22	21	5	update	6	0	xxx	ddd
+23	22	5	update	7	0	xxx	eee
+24	23	5	update	8	0	xxx	fff
+25	24	5	update	9	0	xxx	ggg
+26	25	5	update	10	0	xxx	hhh
+27	26	5	update	11	0	xxx	iii
+28	27	5	update	12	0	xxx	jjj
+29	28	5	commit
