@@ -9,7 +9,7 @@ typedef unsigned int zplus;
 int smallestRecLSN(map<int, int>, vector <LogRecord*>);
 bool redoUpdate(UpdateLogRecord*, StorageEngine*, map <int, int>);
 bool redoCLR(CompensationLogRecord*, StorageEngine*, map <int, int>);
-void lastLSNofAliveTxs(map<int, txTableEntry>, priority_queue<int>&);
+void lastLSNotAliveTxs(map<int, txTableEntry>, priority_queue<int>&);
 int move(priority_queue<int>&);
 LogRecord* getLogRecord(int maxLSN, vector <LogRecord*> log);
 void redoEnd(StorageEngine*, map <int, txTableEntry>&, vector <LogRecord*>&);
@@ -42,16 +42,6 @@ void LogMgr::flushLogTail(int maxLSN){
 
 void LogMgr::analyze(vector <LogRecord*> log){
 	int master = se->get_master();
-	// int start_log = 0;
-	// for (int i = log.size() - 1; i >= 0; i--){
-	// 	if (log[i]->getLSN() != master) {
-	// 		continue;
-	// 	}
-	// 	else { 
-	// 		start_log = i;
-	// 		break;
-	// 	}
-	// }
 	int start_log = mostRecentCheckPoint(log, master);
 	for(zplus i = start_log; i < log.size(); i++){
 		if(log[i]->getType() == END_CKPT) {
@@ -96,7 +86,7 @@ void LogMgr::undo(vector <LogRecord*> log, int txnum){
 	if(txnum != NULL_TX) {
 		to_undo.push(getLastLSN(txnum));
 	} else {
-		lastLSNofAliveTxs(tx_table, to_undo);
+		lastLSNotAliveTxs(tx_table, to_undo);
 	}
 	while(!to_undo.empty()) {
 		int maxLSN = move(to_undo);
@@ -290,7 +280,7 @@ void redoEnd(StorageEngine* se, map <int, txTableEntry>& tx_table, vector <LogRe
 	}
 }
 
-void lastLSNofAliveTxs(map<int, txTableEntry> tx_table, priority_queue<int>&to_undo){
+void lastLSNotAliveTxs(map<int, txTableEntry> tx_table, priority_queue<int>&to_undo){
 	for(auto it = tx_table.begin(); it != tx_table.end(); it++) {
 		if(it->second.status == U) {
 			to_undo.push(it->second.lastLSN);
